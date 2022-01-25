@@ -40,7 +40,5 @@ X_test = vectorizer.transform(test_text)
 # train LM-Model
 tokenizer = transformers.BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
 nlp = transformers.TFBertModel.from_pretrained('bert-base-uncased')
-# input_ids = np.array(tokenizer.encode(train_text))
-input_ids = tokenizer("Hello, my dog is cute", return_tensors="tf")
-model = transformers.TFBertForSequenceClassification.from_pretrained('bert-base-uncased')
-outputs = model(input_ids)
+input_ids = np.array(tokenizer.encode("Hello, my dog is cute"))[None,:]
+embeddings = nlp(input_ids)
