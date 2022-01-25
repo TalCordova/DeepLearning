@@ -2,6 +2,11 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.neural_network import MLPClassifier
 import transformers
 import numpy as np
+from transformers import AutoModelForSequenceClassification
+
+f = open('atis/intent_label.txt')
+content = f.readlines()
+numLabels = len(content)
 
 # load train text
 f = open('atis/train/seq.in')
@@ -40,5 +45,42 @@ X_test = vectorizer.transform(test_text)
 # train LM-Model
 tokenizer = transformers.BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
 nlp = transformers.TFBertModel.from_pretrained('bert-base-uncased')
-input_ids = np.array(tokenizer.encode("Hello, my dog is cute"))[None,:]
-embeddings = nlp(input_ids)
+
+from torch.utils.data import DataLoader
+from torch.utils.data import Dataset
+import torch
+
+
+class IntentDataset(Dataset):
+    def __init__(self, text, labels):
+        tokenizer = transformers.BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
+        input_ids = tokenizer(text, padding=True, truncation=True, return_tensors="pt")
+        self.text = input_ids
+        self.labels = labels
+        # self.train_data = torch.Tensor(self.train_data)
+        # self.train_labels = torch.Tensor(self.train_labels)
+    def __len__(self):
+        return len(self.text)
+
+    def __getitem__(self, idx):
+        return self.text[idx], self.labels[idx]
+
+train_input_ids = tokenizer(train_text, padding=True, truncation=True, return_tensors="pt")
+train_embeddings = nlp(input_ids)
+
+input_ids = tokenizer(dev_text, padding=True, truncation=True, return_tensors="pt")
+dev_embeddings = nlp(input_ids)
+
+model = AutoModelForSequenceClassification.from_pretrained("bert-base-cased", num_labels=numLabels)
+
+from transformers import TrainingArguments
+
+training_args = TrainingArguments("test_trainer")
+
+from transformers import Trainer
+
+train_dataset = IntentDataset(train_text, train_labels)
+dev_dataset = IntentDataset(dev_text, dev_labels)
+
+trainer = Trainer(model=model, args=training_args, train_dataset=train_dataset, eval_dataset=dev_dataset)
+trainer.train()
