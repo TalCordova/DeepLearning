@@ -50,7 +50,6 @@ from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 import torch
 
-
 class IntentDataset(Dataset):
     def __init__(self, text, labels):
         tokenizer = transformers.BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
@@ -66,10 +65,8 @@ class IntentDataset(Dataset):
         return self.text[idx], self.labels[idx]
 
 train_input_ids = tokenizer(train_text, padding=True, truncation=True, return_tensors="pt")
-train_embeddings = nlp(input_ids)
 
-input_ids = tokenizer(dev_text, padding=True, truncation=True, return_tensors="pt")
-dev_embeddings = nlp(input_ids)
+dev_input_ids = tokenizer(dev_text, padding=True, truncation=True, return_tensors="pt")
 
 model = AutoModelForSequenceClassification.from_pretrained("bert-base-cased", num_labels=numLabels)
 
