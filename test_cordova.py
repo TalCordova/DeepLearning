@@ -44,18 +44,16 @@ dev_labels = [str(i)[:-1] for i in lines]
 
 ## non - language model
 
-
-
 ## language model - BERT
 from transformers import AutoModelForSequenceClassification
 from transformers import TrainingArguments
 
-tokenizer = transformers.BertTokenizer.from_pretrained('distilbert-base-uncased', do_lower_case=True)
+tokenizer = transformers.BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
 
 bert_input = tokenizer(train_set,padding=True , truncation=True, return_tensors="pt")
 
 from transformers import BertTokenizer
-tokenizer = BertTokenizer.from_pretrained('distilbert-base-uncased')
+tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
 
 class Dataset(torch.utils.data.Dataset):
 
@@ -94,7 +92,7 @@ class BertClassifier(nn.Module):
 
         super(BertClassifier, self).__init__()
 
-        self.bert = BertModel.from_pretrained('distilbert-base-cased')
+        self.bert = BertModel.from_pretrained('bert-base-cased')
         self.dropout = nn.Dropout(dropout)
         self.linear = nn.Linear(768, num_labels)
         self.relu = nn.ReLU()
