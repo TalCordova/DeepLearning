@@ -9,15 +9,12 @@ import transformers
 import tensorflow as tf
 
 ##functions
-def Convert(lst):
-    res_dct = {lst[i]: lst[i + 1] for i in range(0, len(lst), 2)}
-    return res_dct
 
 f = open('atis/intent_label.txt', 'r', encoding="utf8") # opening a file
 labels = f.readlines()
 labels = [str(i)[:-1] for i in labels]
 num_labels = len(labels)
-labels_dictionary = dict(zip(labels, range(1,23)))
+labels = dict(zip(labels, range(1,23)))
 
 ## Question 1
 
@@ -52,24 +49,18 @@ from transformers import AutoModelForSequenceClassification
 from transformers import TrainingArguments
 
 tokenizer = transformers.BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
-nlp = transformers.TFBertModel.from_pretrained('bert-base-uncased')
 
-model = AutoModelForSequenceClassification.from_pretrained("bert-base-cased", num_labels=num_labels)
-training_args = TrainingArguments("test_trainer")
-
-bert_input = tokenizer(train_set,padding='max_length', max_length = 512, truncation=True, return_tensors="pt")
+bert_input = tokenizer(train_set,padding=True , truncation=True, return_tensors="pt")
 
 from transformers import BertTokenizer
 tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
 
 class Dataset(torch.utils.data.Dataset):
 
-    def __init__(self, df):
+    def __init__(self, text, text_labels):
 
-        self.labels = [labels[label] for label in df['category']]
-        self.texts = [tokenizer(text,
-                               padding='max_length', max_length = 512, truncation=True,
-                                return_tensors="pt") for text in df['text']]
+        self.labels = [labels[label] for label in text_labels]
+        self.texts = [tokenizer(t, padding=True, truncation=True, return_tensors="pt") for t in text]
 
     def classes(self):
         return self.labels
@@ -103,7 +94,7 @@ class BertClassifier(nn.Module):
 
         self.bert = BertModel.from_pretrained('bert-base-cased')
         self.dropout = nn.Dropout(dropout)
-        self.linear = nn.Linear(768, 5)
+        self.linear = nn.Linear(768, num_labels)
         self.relu = nn.ReLU()
 
     def forward(self, input_id, mask):
