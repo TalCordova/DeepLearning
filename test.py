@@ -46,23 +46,6 @@ X_test = vectorizer.transform(test_text)
 tokenizer = transformers.BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
 nlp = transformers.TFBertModel.from_pretrained('bert-base-uncased')
 
-from torch.utils.data import DataLoader
-from torch.utils.data import Dataset
-import torch
-
-class IntentDataset(Dataset):
-    def __init__(self, text, labels):
-        tokenizer = transformers.BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
-        input_ids = tokenizer(text, padding=True, truncation=True, return_tensors="pt")
-        self.text = input_ids
-        self.labels = labels
-        # self.train_data = torch.Tensor(self.train_data)
-        # self.train_labels = torch.Tensor(self.train_labels)
-    def __len__(self):
-        return len(self.text)
-
-    def __getitem__(self, idx):
-        return self.text[idx], self.labels[idx]
 
 train_input_ids = tokenizer(train_text, padding=True, truncation=True, return_tensors="pt")
 
@@ -81,3 +64,21 @@ dev_dataset = IntentDataset(dev_text, dev_labels)
 
 trainer = Trainer(model=model, args=training_args, train_dataset=train_dataset, eval_dataset=dev_dataset)
 trainer.train()
+
+from torch.utils.data import DataLoader
+from torch.utils.data import Dataset
+import torch
+
+class IntentDataset(Dataset):
+    def __init__(self, text, labels):
+        tokenizer = transformers.BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
+        input_ids = tokenizer(text, padding=True, truncation=True, return_tensors="pt")
+        self.text = input_ids
+        self.labels = labels
+        # self.train_data = torch.Tensor(self.train_data)
+        # self.train_labels = torch.Tensor(self.train_labels)
+    def __len__(self):
+        return len(self.text)
+
+    def __getitem__(self, idx):
+        return self.text[idx], self.labels[idx]
