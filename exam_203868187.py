@@ -1,68 +1,64 @@
 ## import packages
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.neural_network import MLPClassifier
+import transformers
 import numpy as np
 import torch
-import torch.nn.functional as F
-import sklearn
-from sklearn.preprocessing import OneHotEncoder
-from collections import Counter
-import transformers
-import tensorflow as tf
+from torch import nn
+from transformers import BertModel
+from torch.optim import Adam
+from tqdm import tqdm
 
-##functions
-
+## ----------label dictionary
 f = open('atis/intent_label.txt', 'r', encoding="utf8") # opening a file
 labels = f.readlines()
 labels = [str(i)[:-1] for i in labels]
 num_labels = len(labels)
-labels = dict(zip(labels, range(1,23)))
+labels = dict(zip(labels, range(0, 22)))
 
-## Question 1
+## Load Data
 
-##load train text
-f = open('atis/train/seq.in', 'r', encoding="utf8") # opening a file
-lines = f.readlines()
-train_set =[str(i)[:-1] for i in lines]
-f = open('atis/train/label', 'r', encoding="utf8") # opening a file
-lines = f.readlines()
-train_labels = [str(i)[:-1] for i in lines]
+# load train text
+f = open('atis/train/seq.in')
+content = f.readlines()
+train_text = [str(x)[:-1] for x in content]
+f = open('atis/train/label')
+content = f.readlines()
+train_labels = [str(x)[:-1] for x in content]
+train_labels = [labels.get(label, 1) for label in train_labels]
 
-##load test text
-f = open('atis/test/seq.in', 'r', encoding="utf8") # opening a file
-lines = f.readlines()
-test_set =[str(i)[:-1] for i in lines]
-f = open('atis/test/label', 'r', encoding="utf8") # opening a file
-lines = f.readlines()
-test_labels = [str(i)[:-1] for i in lines]
+# load dev text
+f = open('atis/dev/seq.in')
+content = f.readlines()
+dev_text = [str(x)[:-1] for x in content]
+f = open('atis/dev/label')
+content = f.readlines()
+dev_labels = [str(x)[:-1] for x in content]
+dev_labels = [labels.get(label, 1) for label in dev_labels]
 
-##load dev text
-f = open('atis/dev/seq.in', 'r', encoding="utf8") # opening a file
-lines = f.readlines()
-dev_set =[str(i)[:-1] for i in lines]
-f = open('atis/dev/label', 'r', encoding="utf8") # opening a file
-lines = f.readlines()
-dev_labels = [str(i)[:-1] for i in lines]
+# load test text
+f = open('atis/test/seq.in')
+content = f.readlines()
+test_text = [str(x)[:-1] for x in content]
+f = open('atis/test/label')
+content = f.readlines()
+test_labels = [str(x)[:-1] for x in content]
+test_labels = [labels.get(label, 1) for label in test_labels]
 
-## non - language model
+maxlen = max([len(x) for x in train_text])
 
 
+# train LM-Model - BERT
 
-## language model - BERT
-from transformers import AutoModelForSequenceClassification
-from transformers import TrainingArguments
-
-tokenizer = transformers.BertTokenizer.from_pretrained('distilbert-base-uncased', do_lower_case=True)
-
-bert_input = tokenizer(train_set,padding=True , truncation=True, return_tensors="pt")
-
-from transformers import BertTokenizer
-tokenizer = BertTokenizer.from_pretrained('distilbert-base-uncased')
+## Classes and functions
+tokenizer = transformers.BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
 
 class Dataset(torch.utils.data.Dataset):
 
     def __init__(self, text, text_labels):
 
-        self.labels = [labels[label] for label in text_labels]
-        self.texts = [tokenizer(t, padding=True, truncation=True, return_tensors="pt") for t in text]
+        self.labels = text_labels
+        self.texts = [tokenizer(t, padding='max_length',max_length=maxlen,  truncation=True, return_tensors="pt") for t in text]
 
     def classes(self):
         return self.labels
@@ -72,6 +68,7 @@ class Dataset(torch.utils.data.Dataset):
 
     def get_batch_labels(self, idx):
         # Fetch a batch of labels
+        # return torch.Tensor(self.labels[idx])
         return np.array(self.labels[idx])
 
     def get_batch_texts(self, idx):
@@ -85,23 +82,21 @@ class Dataset(torch.utils.data.Dataset):
 
         return batch_texts, batch_y
 
-from torch import nn
-from transformers import BertModel
-
 class BertClassifier(nn.Module):
 
     def __init__(self, dropout=0.5):
 
         super(BertClassifier, self).__init__()
 
-        self.bert = BertModel.from_pretrained('distilbert-base-cased')
+        self.bert = BertModel.from_pretrained('bert-base-uncased')
+        self.bert = self.bert
         self.dropout = nn.Dropout(dropout)
         self.linear = nn.Linear(768, num_labels)
         self.relu = nn.ReLU()
 
     def forward(self, input_id, mask):
 
-        _, pooled_output = self.bert(input_ids= input_id, attention_mask=mask,return_dict=False)
+        _, pooled_output = self.bert(input_ids=input_id, attention_mask=mask, return_dict=False)
         dropout_output = self.dropout(pooled_output)
         linear_output = self.linear(dropout_output)
         final_layer = self.relu(linear_output)
@@ -109,12 +104,8 @@ class BertClassifier(nn.Module):
         return final_layer
 
 
-from torch.optim import Adam
-from tqdm import tqdm
-
-
-def train(model, train_data, val_data, learning_rate, epochs):
-    train, val = Dataset(train_data), Dataset(val_data)
+def train(model, train_data, train_labels, val_data, val_labels, learning_rate, epochs):
+    train, val = Dataset(train_data, train_labels), Dataset(val_data, val_labels)
 
     train_dataloader = torch.utils.data.DataLoader(train, batch_size=2, shuffle=True)
     val_dataloader = torch.utils.data.DataLoader(val, batch_size=2)
@@ -129,6 +120,8 @@ def train(model, train_data, val_data, learning_rate, epochs):
         model = model.cuda()
         criterion = criterion.cuda()
 
+    optimizer = Adam(model.parameters(), lr=learning_rate)
+
     for epoch_num in range(epochs):
 
         total_acc_train = 0
@@ -141,7 +134,8 @@ def train(model, train_data, val_data, learning_rate, epochs):
 
             output = model(input_id, mask)
 
-            batch_loss = criterion(output, train_label)
+            train_labelTensor = train_label.type(torch.LongTensor).to(device)
+            batch_loss = criterion(output, train_labelTensor)
             total_loss_train += batch_loss.item()
 
             acc = (output.argmax(dim=1) == train_label).sum().item()
@@ -163,7 +157,8 @@ def train(model, train_data, val_data, learning_rate, epochs):
 
                 output = model(input_id, mask)
 
-                batch_loss = criterion(output, val_label)
+                val_labelTensor = val_label.type(torch.LongTensor).to(device)
+                batch_loss = criterion(output, val_labelTensor)
                 total_loss_val += batch_loss.item()
 
                 acc = (output.argmax(dim=1) == val_label).sum().item()
@@ -176,8 +171,35 @@ def train(model, train_data, val_data, learning_rate, epochs):
                 | Val Accuracy: {total_acc_val / len(val_data): .3f}')
 
 
+def evaluate(model, test_data, test_labels):
+    test = Dataset(test_data, test_labels)
+    test_dataloader = torch.utils.data.DataLoader(test, batch_size=2)
+    use_cuda = torch.cuda.is_available()
+    device = torch.device("cuda" if use_cuda else "cpu")
+    total_acc_test = 0
+    with torch.no_grad():
+
+        for test_input, test_label in test_dataloader:
+            test_label = test_label.to(device)
+            mask = test_input['attention_mask'].to(device)
+            input_id = test_input['input_ids'].squeeze(1).to(device)
+
+
+            output = model(input_id, mask)
+
+            acc = (output.argmax(dim=1) == test_label).sum().item()
+            total_acc_test += acc
+
+    print(f'Test Accuracy: {total_acc_test / len(test_data): .3f}')
+    print(f'Model Predictions: {output.argmax(dim=1)}')
+
+
+## Train BERT Model
 EPOCHS = 5
 model = BertClassifier()
 LR = 1e-6
 
-train(model, train_set, dev_set, LR, EPOCHS)
+train(model, train_text, train_labels, dev_text, dev_labels, LR, EPOCHS)
+
+## Evaluate BERT Model
+evaluate(model, test_text, test_labels)

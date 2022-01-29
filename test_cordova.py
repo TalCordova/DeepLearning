@@ -7,14 +7,13 @@ from sklearn.preprocessing import OneHotEncoder
 from collections import Counter
 import transformers
 import tensorflow as tf
-
-##functions
+from tokenizers import Tokenizer
 
 f = open('atis/intent_label.txt', 'r', encoding="utf8") # opening a file
 labels = f.readlines()
 labels = [str(i)[:-1] for i in labels]
 num_labels = len(labels)
-labels = dict(zip(labels, range(1,23)))
+labels = dict(zip(labels, range(0,22)))
 
 ## Question 1
 
@@ -48,7 +47,7 @@ dev_labels = [str(i)[:-1] for i in lines]
 from transformers import AutoModelForSequenceClassification
 from transformers import TrainingArguments
 
-tokenizer = transformers.BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
+tokenizer = transformers.BertTokenizer.from_pretrained('bert-base-cased', do_lower_case=True)
 
 bert_input = tokenizer(train_set,padding=True , truncation=True, return_tensors="pt")
 
@@ -111,8 +110,8 @@ from torch.optim import Adam
 from tqdm import tqdm
 
 
-def train(model, train_data, val_data, learning_rate, epochs):
-    train, val = Dataset(train_data), Dataset(val_data)
+def train(model, train_data, train_labels, val_data, val_labels,learning_rate, epochs):
+    train, val = Dataset(train_data, train_labels), Dataset(val_data, val_labels)
 
     train_dataloader = torch.utils.data.DataLoader(train, batch_size=2, shuffle=True)
     val_dataloader = torch.utils.data.DataLoader(val, batch_size=2)
@@ -178,4 +177,4 @@ EPOCHS = 5
 model = BertClassifier()
 LR = 1e-6
 
-train(model, train_set, dev_set, LR, EPOCHS)
+train(model, train_set,train_labels, dev_set,dev_labels, LR, EPOCHS)

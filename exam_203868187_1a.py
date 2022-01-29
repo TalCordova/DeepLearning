@@ -1,145 +1,96 @@
-import numpy as np
-import pandas as pd
-from statsmodels.tsa.stattools import grangercausalitytests
-from statsmodels.tsa.stattools import adfuller
-from statsmodels.tsa.vector_ar.var_model import VAR
-from statsmodels.tsa.ar_model import ar_select_order
-import torch.nn as nn
-import torch
-from torch.utils.data import DataLoader
-from torch.utils.data import Dataset
-from sklearn.preprocessing import StandardScaler, LabelEncoder, OneHotEncoder
-from collections import Counter
 
-# load dataset
+## import packages
+import tensorflow as tf
+import numpy as np
+from tensorflow import keras
+from tensorflow.keras import layers
+from keras.models import Sequential
+from keras.layers import Dense
+from keras.layers import LSTM
+from keras.layers.embeddings import Embedding
+from keras.preprocessing import sequence
+from keras.layers import Dropout
+
+
+##label dictionary
 f = open('atis/intent_label.txt', 'r', encoding="utf8") # opening a file
 labels = f.readlines()
 labels = [str(i)[:-1] for i in labels]
 num_labels = len(labels)
-labels = dict(zip(labels, range(1,23)))
-
-## Question 1
-
-le = LabelEncoder()
-ohe = OneHotEncoder(sparse=False)
-
-##load train text
-f = open('atis/train/seq.in', 'r', encoding="utf8") # opening a file
-lines = f.readlines()
-train_set =[str(i)[:-1] for i in lines]
-splitted_train_set = [str(i)[:-1].split() for i in lines]
-f = open('atis/train/label', 'r', encoding="utf8") # opening a file
-lines = f.readlines()
-train_labels = [str(i)[:-1] for i in lines]
-s = set()
-for line in splitted_train_set:
-    s.update(line)
-voc = dict(zip(s, range(1,len(s)+1)))
-ohe.fit(np.array(voc.values()).reshape(-1,1))
-for key in voc.keys():
-    voc[key] = ohe.transform(np.array(voc[key]).reshape(-1,1))
-
-train_set_temp = []
-for sentence in splitted_train_set:
-    train_set_temp.append([voc[word] for word in sentence])
+labels = dict(zip(labels, range(0, 22)))
 
 
-##load test text
-f = open('atis/test/seq.in', 'r', encoding="utf8") # opening a file
-lines = f.readlines()
-test_set =[str(i)[:-1] for i in lines]
-f = open('atis/test/label', 'r', encoding="utf8") # opening a file
-lines = f.readlines()
-test_labels = [str(i)[:-1] for i in lines]
-
-##load dev text
-f = open('atis/dev/seq.in', 'r', encoding="utf8") # opening a file
-lines = f.readlines()
-dev_set =[str(i)[:-1] for i in lines]
-f = open('atis/dev/label', 'r', encoding="utf8") # opening a file
-lines = f.readlines()
-dev_labels = [str(i)[:-1] for i in lines]
-
-class lstm(nn.Module):
-    def __init__(self, input_size, hidden_size):
-        super().__init__()
-        hidden_state = torch.randn(1, 1, hidden_size)
-        cell_state = torch.randn(1, 1, hidden_size)
-        self.hidden = (hidden_state, cell_state)
-        self.lstm = nn.LSTM(input_size=input_size, hidden_size=hidden_size, batch_first=True)
-        self.lin = nn.Linear(hidden_size, num_labels)
-    def forward(self, input):
-        lstm_out, _ = self.lstm(input)
-        x = self.lin(lstm_out[:, -1, :])
-        return nn.Softmax(x)
-
-class GDPDataset(Dataset):
-    def __init__(self, data, window_size=5):
-        self.train_data = []
-        self.train_labels = []
-        for i in range(len(data) - window_size):
-            self.train_data.append(data[i:i+window_size])
-            self.train_labels.append(data[i+window_size, 1])
-        self.train_data = torch.Tensor(self.train_data)
-        self.train_labels = torch.Tensor(self.train_labels)
-    def __len__(self):
-        return len(self.train_labels)
-
-    def __getitem__(self, idx):
-        return self.train_data[idx], self.train_labels[idx]
-
-def train_loop(dataloader, model, loss_fn, optimizer):
-    for X, y in dataloader:
-        # Compute prediction and loss
-        pred = model(X)
-        loss = loss_fn(pred, y)
-
-        # Backpropagation
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-def test_loop(dataloader, model, loss_fn):
-    num_batches = len(dataloader)
-    test_loss = 0
-
-    with torch.no_grad():
-        for X, y in dataloader:
-            pred = model(X)
-            test_loss += loss_fn(pred, y).item()
-
-    test_loss /= num_batches
-    print(f"Test Error: \n MSE: {(test_loss):>0.1f}%")
-    return test_loss
+# load train text
+f = open('atis/train/seq.in')
+content = f.readlines()
+train_text = [str(x)[:-1].split() for x in content]
+f = open('atis/train/label')
+content = f.readlines()
+train_labels = [str(x)[:-1] for x in content]
+train_labels = [labels.get(label, 0) for label in train_labels]
 
 
-# hyper parameters
-learning_rate = 1e-2
-batch_size = 64
-epochs = 10
+# load dev text
+f = open('atis/dev/seq.in')
+content = f.readlines()
+dev_text = [str(x)[:-1] for x in content]
+f = open('atis/dev/label')
+content = f.readlines()
+dev_labels = [str(x)[:-1] for x in content]
+dev_labels = [labels.get(label, 0) for label in dev_labels]
 
-# build dataset
+# load test text
+f = open('atis/test/seq.in')
+content = f.readlines()
+test_text = [str(x)[:-1] for x in content]
+f = open('atis/test/label')
+content = f.readlines()
+test_labels = [str(x)[:-1] for x in content]
+test_labels = [labels.get(label, 0) for label in test_labels]
 
-trainDatast = GDPDataset(train_set)
-evalDatast = GDPDataset(dev_set)
-testDatast = GDPDataset(test_set)
+## prepare data
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+num_words = 1000
+oov_token = '<UNK>'
+pad_type = 'post'
+trunc_type = 'post'
 
-# data loaders
-train_dataloader = DataLoader(trainDatast, batch_size=16, shuffle=True)
-eval_dataloader = DataLoader(evalDatast, batch_size=16, shuffle=True)
-test_dataloader = DataLoader(testDatast, batch_size=16, shuffle=True)
+tokenizer = Tokenizer(num_words=num_words, oov_token=oov_token)
+tokenizer.fit_on_texts(train_text)
+
+word_index = tokenizer.word_index
+train_sequences = tokenizer.texts_to_sequences(train_text)
+
+maxlen = max([len(x) for x in train_sequences])
+train_padded = pad_sequences(train_sequences, padding=pad_type, truncating=trunc_type, maxlen=maxlen)
+train_padded = np.array(train_padded)
+
+val_sequence = tokenizer.texts_to_sequences(dev_text)
+val_padded = pad_sequences(val_sequence, padding=pad_type, truncating=trunc_type, maxlen=maxlen)
+val_padded = np.array(val_padded)
+
+test_sequence = tokenizer.texts_to_sequences(test_text)
+test_padded = pad_sequences(test_sequence, padding=pad_type, truncating=trunc_type, maxlen=maxlen)
+test_padded = np.array(test_padded)
+
+train_labels = np.array(train_labels)
+dev_labels = np.array(dev_labels)
+test_labels = np.array(test_labels)
 
 
-loss = nn.MSELoss()
-hidden_size = 32
-res = {'hidden_size': [], 'test_loss': []}
-model = lstm(input_size=8, hidden_size=hidden_size)
-optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-for t in range(epochs):
-    print(f"Epoch {t + 1}\n-------------------------------")
-    train_loop(train_dataloader, model, loss, optimizer)
-    eval_loss = test_loop(eval_dataloader, model, loss)
-    test_loss = test_loop(test_dataloader, model, loss)
-res['test_loss'].append(test_loss)
-res = pd.DataFrame(res)
-print(f"best hidden size of lstm with window size=5: {res[res['test_loss']==res['test_loss'].min()]['hidden_size'].values[0]}")
+## train model
+max_sentence_length = maxlen
+embedding_vector_length = len(train_padded)
+model = Sequential()
+model.add(Embedding(input_length=max_sentence_length, output_dim=num_labels, input_dim=embedding_vector_length))
+model.add(Dropout(0.2))
+model.add(LSTM(num_labels))
+model.add(Dropout(0.2))
+model.add(Dense(1, activation='softmax'))
+model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+print(model.summary())
+model.fit(train_padded, train_labels.reshape(-1,1), validation_data=(val_padded, dev_labels.reshape(-1,1)), epochs=10, batch_size=64, verbose=1)
+
+scores = model.evaluate(test_padded, test_labels.reshape(-1, 1), verbose=1)
+print("Accuracy: %.2f%%" % (scores[1]*100))
