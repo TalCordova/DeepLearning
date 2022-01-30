@@ -1,6 +1,4 @@
-## import packages
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.neural_network import MLPClassifier
+## ------------------------------------------------ Import  Packages-------------------------------------------------
 import transformers
 import numpy as np
 import torch
@@ -9,48 +7,8 @@ from transformers import BertModel
 from torch.optim import Adam
 from tqdm import tqdm
 
-## ----------label dictionary
-f = open('atis/intent_label.txt', 'r', encoding="utf8") # opening a file
-labels = f.readlines()
-labels = [str(i)[:-1] for i in labels]
-num_labels = len(labels)
-labels = dict(zip(labels, range(0, 22)))
+## --------------------------------- Classes and Functions --------------------------------------------------
 
-## Load Data
-
-# load train text
-f = open('atis/train/seq.in')
-content = f.readlines()
-train_text = [str(x)[:-1] for x in content]
-f = open('atis/train/label')
-content = f.readlines()
-train_labels = [str(x)[:-1] for x in content]
-train_labels = [labels.get(label, 1) for label in train_labels]
-
-# load dev text
-f = open('atis/dev/seq.in')
-content = f.readlines()
-dev_text = [str(x)[:-1] for x in content]
-f = open('atis/dev/label')
-content = f.readlines()
-dev_labels = [str(x)[:-1] for x in content]
-dev_labels = [labels.get(label, 1) for label in dev_labels]
-
-# load test text
-f = open('atis/test/seq.in')
-content = f.readlines()
-test_text = [str(x)[:-1] for x in content]
-f = open('atis/test/label')
-content = f.readlines()
-test_labels = [str(x)[:-1] for x in content]
-test_labels = [labels.get(label, 1) for label in test_labels]
-
-maxlen = max([len(x) for x in train_text])
-
-
-# train LM-Model - BERT
-
-## Classes and functions
 tokenizer = transformers.BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
 
 class Dataset(torch.utils.data.Dataset):
@@ -102,7 +60,6 @@ class BertClassifier(nn.Module):
         final_layer = self.relu(linear_output)
 
         return final_layer
-
 
 def train(model, train_data, train_labels, val_data, val_labels, learning_rate, epochs):
     train, val = Dataset(train_data, train_labels), Dataset(val_data, val_labels)
@@ -170,13 +127,13 @@ def train(model, train_data, train_labels, val_data, val_labels, learning_rate, 
                 | Val Loss: {total_loss_val / len(val_data): .3f} \
                 | Val Accuracy: {total_acc_val / len(val_data): .3f}')
 
-
 def evaluate(model, test_data, test_labels):
     test = Dataset(test_data, test_labels)
-    test_dataloader = torch.utils.data.DataLoader(test, batch_size=2)
+    test_dataloader = torch.utils.data.DataLoader(test, batch_size=1)
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
     total_acc_test = 0
+    predictions = []
     with torch.no_grad():
 
         for test_input, test_label in test_dataloader:
@@ -189,17 +146,69 @@ def evaluate(model, test_data, test_labels):
 
             acc = (output.argmax(dim=1) == test_label).sum().item()
             total_acc_test += acc
+            pred_num = output.argmax(dim=1).item()
+            pred_label = get_key(output.argmax(dim=1).item(), labels)
+            predictions.append(pred_label)
 
     print(f'Test Accuracy: {total_acc_test / len(test_data): .3f}')
-    print(f'Model Predictions: {output.argmax(dim=1)}')
+    print('Model Predictions:\n', predictions)
 
+def get_key(val, my_dict):
+    for key, value in my_dict.items():
+        if val == value:
+            return key
 
-## Train BERT Model
-EPOCHS = 5
+    return "key doesn't exist"
+
+## ------------------------------------Label Dictionary------------------------------------------------
+file = open('atis/intent_label.txt', 'r', encoding="utf8") # opening a file
+labels = file.readlines()
+labels = [str(i)[:-1] for i in labels]
+num_labels = len(labels)
+labels = dict(zip(labels, range(0, 22)))
+
+##-------------------------------------------------------------------------------------------------------
+
+## ------------------------------------------- data from atis --------------------------------------------
+
+# train data
+file = open('atis/train/seq.in')
+lines = file.readlines()
+train_set = [str(x)[:-1] for x in lines]
+file = open('atis/train/label')
+lines = file.readlines()
+train_labels = [str(line)[:-1] for line in lines]
+train_labels = [labels.get(label, 0) for label in train_labels]
+
+# validation data
+file = open('atis/dev/seq.in')
+lines = file.readlines()
+val_set = [str(line)[:-1] for line in lines]
+file = open('atis/dev/label')
+lines = file.readlines()
+val_labels = [str(line)[:-1] for line in lines]
+val_labels = [labels.get(label, 0) for label in val_labels]
+
+# test data
+file = open('atis/test/seq.in')
+lines = file.readlines()
+test_set = [str(line)[:-1] for line in lines]
+file = open('atis/test/label')
+lines = file.readlines()
+test_labels = [str(line)[:-1] for line in lines]
+test_labels = [labels.get(label, 0) for label in test_labels]
+
+maxlen = max([len(i) for i in train_set])
+
+# ----------------------------------------------------- Train Language Model-Model - BERT (pre-trained)-----------------------------------
+
+## ------------------------------------- Train BERT Model -------------------------------------------------
+
+num_epochs = 5
 model = BertClassifier()
-LR = 1e-6
+learning_rate = 1e-6
 
-train(model, train_text, train_labels, dev_text, dev_labels, LR, EPOCHS)
+train(model, train_set, train_labels, val_set, val_labels, learning_rate, num_epochs)
 
-## Evaluate BERT Model
-evaluate(model, test_text, test_labels)
+## -------------------------------------- Evaluate BERT Model ------------------------------------------------------------------
+evaluate(model, test_set, test_labels)
