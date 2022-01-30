@@ -204,7 +204,7 @@ maxlen = max([len(i) for i in train_set])
 
 ## ------------------------------------- Train BERT Model -------------------------------------------------
 
-num_epochs = 5
+num_epochs = 1
 model = BertClassifier()
 learning_rate = 1e-6
 

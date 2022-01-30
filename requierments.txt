@@ -1,0 +1,36 @@
+For 1A - LSTM:
+packages:
+tensorflow (keras)
+numpy
+
+The algorithm needs at least 20 epochs to improve because the embeddings are learned during the training stage. I set the number for 30 epochs.
+
+import tensorflow as tf
+import numpy as np
+from tensorflow import keras
+from tensorflow.keras import layers
+from keras.models import Sequential
+from keras.layers import Dense
+from keras.layers import LSTM
+from keras.layers.embeddings import Embedding
+from keras.preprocessing import sequence
+from keras.layers import Dropout
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+
+For 1B - Bert:
+packeages:
+transformes
+numpy
+PyTorch
+tqdm
+
+The algorithm can run both on CPU or GPU. Number of epochs set to 1.
+
+import transformers
+import numpy as np
+import torch
+from torch import nn
+from transformers import BertModel
+from torch.optim import Adam
+from tqdm import tqdm

@@ -13,6 +13,13 @@ from keras.layers import Dropout
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
+def get_key(val, my_dict):
+    for key, value in my_dict.items():
+        if val == value:
+            return key
+
+    return "key doesn't exist"
+
 ## ------------------------------------Label Dictionary------------------------------------------------
 
 file = open('atis/intent_label.txt', 'r', encoding="utf8") # opening a file
@@ -110,4 +117,13 @@ model.fit(train_padded, train_labels, validation_data=(val_padded, val_labels), 
 
 ## --------------------------------------------------------Evaluate LSTM -------------------------------------------------------------------
 scores = model.evaluate(test_padded, test_labels, verbose=1)
+preds = model.predict(test_padded, verbose=1)
+preds_classes = []
+for pred in preds:
+    preds_classes.append(pred.argmax(axis=-1))
+pred_label = []
+for pred in preds_classes:
+    pred_label.append(get_key(pred, labels))
+
 print("\nTest Accuracy: %.2f%%" % (scores[1]*100))
+print('\nModel Predictions:\n', pred_label)
